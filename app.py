@@ -160,7 +160,7 @@ else:
     st.write("**Você precisa selecionar uma informação no filtro acima**")
 
 
-st.sidebar.image("static/luizhfraraujo.png", width=128)
+st.sidebar.image("static/luizhfraraujo.png", use_column_width=True)
 st.sidebar.markdown("Linkedin: https://www.linkedin.com/in/luizhfraraujo/")
 st.sidebar.markdown("Github: http://github.com/luizhfraraujo")
 st.sidebar.markdown(
