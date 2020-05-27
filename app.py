@@ -1,23 +1,10 @@
 import pandas as pd
 import streamlit as st
 import altair as alt
+from data import Data as dt
+import pydeck as pdk
 
-
-@st.cache
-def get_data():
-    df = pd.read_csv("datahackers.csv")
-    df.columns = [eval(col)[1] for col in df.columns]
-    df = df[df['living_in_brasil'] == 1]
-
-    # aqui vamos alterar os valores de 1 para Sim e 0 para não, para facilitar a visualização
-    df['is_data_science_professional'] = df.is_data_science_professional.map({
-                                                                             1: 'Sim', 0: 'Não'})
-
-    return df
-
-
-df = get_data()
-
+df = dt.get_data()
 
 '''
 # Pesquisa DataHackers 2019
@@ -30,18 +17,15 @@ Com base no dataset, vamos realizar algumas análises e verificar como o anda o 
 
 '''
 
-st.subheader('Quantidade de respostas a serem analisadas: %i' %
-             (df["is_data_science_professional"].count()))
-'''
-## Você se considera um profissional que atua na área de Data Science?
-'''
+st.write('Quantidade de respostas a serem analisadas: **%i**' %
+         (df["is_data_science_professional"].count()))
 
-is_datascience = pd.DataFrame({
-    "Resposta": df['is_data_science_professional'].unique(),
-    "Valor": df['is_data_science_professional'].groupby(df["is_data_science_professional"]).value_counts()
-})
+st.subheader(
+    "Você se considera um profissional que atua na área de Data Science?")
 
-st.altair_chart(alt.Chart(is_datascience).mark_bar().encode(
+df_is_datascientist = dt.get_is_datascientist(df)
+
+st.altair_chart(alt.Chart(df_is_datascientist).mark_bar().encode(
     alt.Y("Valor", title=""),
     alt.X("Resposta", title=""),
     color="Resposta",
@@ -49,28 +33,35 @@ st.altair_chart(alt.Chart(is_datascience).mark_bar().encode(
 ), use_container_width=True)
 
 st.write("Aqui vemos que o percentual de entrevistados que se consideram **Data Scientists** é de **%.00f%%**." % (
-    (is_datascience[is_datascience["Resposta"] == 'Sim'].Valor.sum() / df["is_data_science_professional"].count()) * 100)
+    (df_is_datascientist[df_is_datascientist["Resposta"] == 'Sim'].Valor.sum() / df["is_data_science_professional"].count()) * 100)
 )
 
 st.write("A partir de agora vamos trabalhar com um filtro de se o entrevistado é profissional de DataScience ou não, que você pode selecionar no menu lateral.")
 
-datascience = st.sidebar.multiselect("É profissional de DataScience?", list(
+is_datascientist = st.sidebar.multiselect("É profissional de DataScience?", list(
     df["is_data_science_professional"].unique()), ['Sim', 'Não'])
 
 
-if len(datascience) > 0:
-    df_dados_selecionados = df[df['is_data_science_professional'].isin(
-        datascience)]
+if len(is_datascientist) > 0:
+    df_selected_data = dt.get_selected_data(df, is_datascientist)
 
-    df_living_state = pd.DataFrame(
-        df_dados_selecionados["living_state"].value_counts())
-
-    df_living_state = pd.DataFrame({
-        "Estados": df_living_state.index,
-        "Total": df_living_state.living_state,
-    })
+    df_living_state = dt.get_living_state(df_selected_data)
 
     st.subheader("Em quais estados estão os entrevistados?")
+
+    st.pydeck_chart(pdk.Deck(
+        map_style="mapbox://styles/mapbox/light-v9",
+        initial_view_state={"latitude": -23.55,
+                            "longitude": -46.64, "zoom": 4, "pitch": 50},
+        layers=[dt.get_map_layers(df_selected_data)],
+        tooltip={
+            'html': '<b>{estados}:</b> {total}',
+            'style': {
+                'color': 'white'
+            }
+        }
+    ))
+
     st.altair_chart(alt.Chart(df_living_state).mark_bar().encode(
         x="Total",
         y=alt.Y("Estados:N", sort="-x"),
@@ -84,13 +75,8 @@ if len(datascience) > 0:
              )
 
     st.subheader("Qual a formação destes profissionais?")
-    df_degreee_level = pd.DataFrame(
-        df_dados_selecionados["degreee_level"].value_counts())
 
-    df_degreee_level = pd.DataFrame({
-        "Graduação": df_degreee_level.index,
-        "Total": df_degreee_level.degreee_level,
-    })
+    df_degreee_level = dt.get_degreee_level(df_selected_data)
 
     st.altair_chart(alt.Chart(df_degreee_level).mark_bar().encode(
         x="Total",
@@ -107,13 +93,7 @@ if len(datascience) > 0:
     st.subheader("Qual o salário destes profissionais?")
     st.write("O grande atrativo desta área talvez seja os salários pagos. Afinal, quem não gostaria de ganhar R$ 25.000 por mês como diz o artigo https://exame.com/carreira/por-que-o-nubank-sempre-busca-cientistas-de-dados-e-paga-ate-r-25-mil ?")
 
-    df_salary_range = pd.DataFrame(
-        df_dados_selecionados["salary_range"].value_counts())
-
-    df_salary_range = pd.DataFrame({
-        "Faixa": df_salary_range.index,
-        "Total": df_salary_range.salary_range,
-    })
+    df_salary_range = dt.get_salary_range(df_selected_data)
 
     st.altair_chart(alt.Chart(df_salary_range).mark_bar().encode(
         x="Total",
@@ -124,13 +104,8 @@ if len(datascience) > 0:
     st.write("Vemos que sim, existem pessoas que ganham mais de **R$ 20.000 por mês** mas que a realidade é um pouco diferente, tendo profissionais que recebem até menos de **R$ 1000**.")
 
     st.subheader("E qual a situação de trabalho destes profissionais?")
-    df_job_situation = pd.DataFrame(
-        df_dados_selecionados["job_situation"].value_counts())
 
-    df_job_situation = pd.DataFrame({
-        "Situação": df_job_situation.index,
-        "Total": df_job_situation.job_situation,
-    })
+    df_job_situation = dt.get_job_situation(df_selected_data)
 
     st.altair_chart(alt.Chart(df_job_situation).mark_bar().encode(
         y=alt.Y("Situação", sort="-x"),
@@ -140,15 +115,7 @@ if len(datascience) > 0:
 
     st.write("Este gráfico nos mostra que na terceira posição temos **Estagiário** como situação profissional dos entrevistados, mas quanto está recebendo um estágiário?")
 
-    df_salary_range = df_dados_selecionados[df["job_situation"]
-                                            == "Estagiário"]
-
-    df_salary_range = pd.DataFrame(
-        df_dados_selecionados[df["job_situation"] == "Estagiário"].salary_range.value_counts())
-    df_salary_range = pd.DataFrame({
-        "Faixa": df_salary_range.index,
-        "Total": df_salary_range.salary_range,
-    })
+    df_salary_range = dt.get_salary_range(df_selected_data, "Estagiário")
 
     st.altair_chart(alt.Chart(df_salary_range).mark_bar().encode(
         x="Total",
@@ -161,13 +128,7 @@ if len(datascience) > 0:
     st.subheader("Existe equilíbrio de gênero entre os profissionais?")
     st.write("Sabemos que o desenquilíbrio de gênero é uma realidade e que existem várias iniciativas para conscientização em nossa sociedade.")
 
-    df_gender = pd.DataFrame(
-        df_dados_selecionados["gender"].value_counts())
-
-    df_gender = pd.DataFrame({
-        "Gênero": df_gender.index,
-        "Total": df_gender.gender,
-    })
+    df_gender = dt.get_gender(df_selected_data)
 
     st.altair_chart(alt.Chart(df_gender).mark_bar().encode(
         x=alt.X("Gênero", sort="-y"),
@@ -175,13 +136,35 @@ if len(datascience) > 0:
         tooltip=["Gênero", "Total"],
     ), use_container_width=True)
 
-    st.write("Podemos ver que o desequilíbrio ainda é grande nos profissionais entrevistados.")
+    st.write(
+        "Podemos ver que o desequilíbrio ainda é grande nos profissionais entrevistados.")
 
-    st.write("Em contrução...")
+    st.subheader("Qual a linguagem de programação mais utilizada?")
+    st.write(
+        "Agora vamos para a eterna guerra: **Python x R**. Quem será que ganhou esta batalha?")
 
-    st.write("Código fonte disponível em: https://github.com/luizhfraraujo/datahackers_survey_2019")
+    df_programming_language = dt.get_programming_language(df)
+
+    st.altair_chart(alt.Chart(df_programming_language).mark_bar().encode(
+        x=alt.X("Total"),
+        y=alt.Y("Linguagem", sort="-x"),
+        tooltip=["Linguagem", "Total"],
+    ), use_container_width=True)
+
+    st.write("**Python!** ")
+    st.write("Em segundo lugar temos a linguagem SQL, que ao meu ver é fundamental visto que a muitos dados estão salvos em bancos e será necessário executar Queries em SQL para obter a informação.")
+    
+    
+
 else:
     st.write("**Você precisa selecionar uma informação no filtro acima**")
+
+
+st.sidebar.image("static/luizhfraraujo.png", width=128)
+st.sidebar.markdown("Linkedin: https://www.linkedin.com/in/luizhfraraujo/")
+st.sidebar.markdown("Github: http://github.com/luizhfraraujo")
+st.sidebar.markdown(
+    "Código fonte disponível em: https://github.com/luizhfraraujo/datahackers_survey_2019")
 # estados = st.multiselect("Estados", list(df["living_state"].unique()))
 
 # df_estados_selecionados = df[df['living_state'].isin(estados)]
